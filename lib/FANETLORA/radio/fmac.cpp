@@ -1186,6 +1186,7 @@ void FanetMac::handleTxLegacy()
 			}
 		}
 		//radio.isReceiving(); //check radio is receiving
+		log_i("FanetMac::handleTxLegacy: LegacyBuffer = %i", LegacyBuffer); //TESTTESTTEST
 		int16_t state = radio.transmit(LegacyBuffer, sizeof(LegacyBuffer));
 		if (state != ERR_NONE){
 			log_e("error TX state=%d",state);
@@ -1321,6 +1322,7 @@ void FanetMac::handleTx()
 		radio.setCodingRate(5);
 	}	
 	//log_i("sending Frame");
+	log_i("FanetMac::handleTx: buffer = %i, blength = %i", buffer, blength); //TESTTESTTEST
 	int16_t state = radio.transmit(buffer, blength);
 	//int tx_ret = LoRa.sendFrame(buffer, blength, neighbors.size() < MAC_CODING48_THRESHOLD ? 8 : 5);
 	int tx_ret=TX_OK;
