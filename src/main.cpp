@@ -81,6 +81,10 @@ XPowersLibInterface *PMU = NULL;
 #if defined(SSD1306) || defined(SH1106G)
 #include <oled.h>
 #endif
+#ifdef LCD
+#include <Adafruit_SharpMem.h>
+#include <LCD.h>
+#endif
 
 #ifdef LOGGER
 #include <Logger.h>
@@ -221,6 +225,16 @@ int8_t PinEink_Cs     =  15;
 int8_t PinEink_Clk    =  4;
 int8_t PinEink_Din    =  2;
 
+//SPI bus for LCD and SD TESTTESTTEST
+int8_t SHARP_SCK      =  15; //32;
+int8_t SHARP_MOSI     =  4; //33;
+int8_t SHARP_SS       =   2;
+//int8_t SD_SS          =  15;
+int8_t SD_MISO        =   36; //4;
+
+#if defined(LCD) || defined(LOGGER)
+  SPIClass SPI_LCD_SD = SPIClass(HSPI);
+#endif
 
 //LED
 int8_t PinUserLed = -1;
@@ -304,6 +318,7 @@ TaskHandle_t xHandleBluetooth = NULL;
 TaskHandle_t xHandleMemory = NULL;
 TaskHandle_t xHandleEInk = NULL;
 TaskHandle_t xHandleOled = NULL;
+TaskHandle_t xHandleLCD = NULL;
 TaskHandle_t xHandleLogger = NULL;
 TaskHandle_t xHandleWeather = NULL;
 
@@ -333,6 +348,9 @@ void taskEInk(void *pvParameters);
 #endif
 #if defined(SSD1306) || defined(SH1106G)
 void taskOled(void *pvParameters);
+#endif
+#if defined(LCD)
+void taskLCD(void *pvParameters);
 #endif
 #ifdef LOGGER
 void taskLogger(void *pvParameters);
@@ -1658,9 +1676,15 @@ void readPGXCFSentence(const char* data)
   ESP.restart();
 }
 
+//TESTTESTTEST
+/*#define SHARP_SCK  32
+#define SHARP_MOSI 33
+#define SHARP_SS   2*/
+
 void setup() {
 
   Serial.begin(115200);
+
   status.restart.doRestart = false;
   status.bPowerOff = false;
   status.bWUBroadCast = false;
@@ -1751,15 +1775,17 @@ void setup() {
   if (setting.boardType == eBoard::UNKNOWN){
     checkBoardType();
   }  
-  /*
-  #if defined(OLED) && !defined(EINK)
+  //TESTTESTTEST
+  #if defined(OLED) && !defined(EINK) && !defined(LCD)
   setting.displayType = OLED0_96;
-  #elif defined(EINK) && !defined(OLED)
+  #elif defined(EINK) && !defined(OLED) && !defined(LCD)
   setting.displayType = EINK2_9;
-  #elif !defined(OLED) && !defined(EINK)
+  #elif defined(LCD) && !defined(OLED) && !defined(EINK)
+  setting.displayType = LCD1_3;
+  #elif !defined(OLED) && !defined(EINK) && !defined(LCD)
   setting.displayType = NO_DISPLAY;
   #endif
-  */
+  //TESTTESTTEST
   status.displayType = setting.displayType; //we have to copy the display-type in case, setting is changing
   #if defined(GSMODULE)  && ! defined(AIRMODULE)
     log_i("only GS-Mode compiled");
@@ -1897,14 +1923,15 @@ void setup() {
     PinPPS = 37;
     
     PinLoraRst = 23;
-    if ((setting.displayType == EINK2_9) || (setting.displayType == EINK2_9_V2)){
-      PinLoraGPIO = 36;
-      PinLoraDI0 = 39;
-    }else{
+    //TESTTESTTEST
+    //if ((setting.displayType == EINK2_9) || (setting.displayType == EINK2_9_V2) || (setting.displayType == LCD1_3)){
+    //  PinLoraGPIO = 36;
+    //  PinLoraDI0 = 39;
+    //}else{
       PinLoraGPIO = 32;
       PinLoraDI0 = 33;
-      PinUserLed = 4;
-    }
+    /*  PinUserLed = 4;
+    }*/ //TESTTESTTEST
     PinLora_SS = 18;
     PinLora_MISO = 19;
     PinLora_MOSI = 27;
@@ -1917,6 +1944,12 @@ void setup() {
     PinBaroSDA = 13;
     PinBaroSCL = 14;
 
+/*TESTTESTTEST
+    SHARP_SCK  = 32;
+    SHARP_MOSI = 33;
+    SHARP_SS   =  2;
+    //SD_SS      = 15;
+    SD_MISO    = 23;*/
 
     //V3.0.0 changed from PIN 0 to PIN 25
     PinBuzzer = 25;
@@ -2330,6 +2363,18 @@ void setup() {
     esp_restart(); //we need to restart    break;
   }
 
+
+  //TESTTESTTEST
+
+  /*#if defined(LCD) || defined(LOGGER)
+  SPI_LCD_SD.begin(SHARP_SCK, SD_MISO, SHARP_MOSI, SHARP_SS);
+  #endif
+  //SPIClass SPI_LCD_SD = SPIClass(HSPI);
+  //SPI_LCD_SD.begin(SHARP_SCK, SD_MISO, SHARP_MOSI, SD_SS);
+  log_i("sck = %d, mosi = %d, cs = %d", SHARP_SCK, SHARP_MOSI, SHARP_SS);*/
+
+  //TESTTESTTEST
+
   for (uint8_t i = 0; i < NUMBUTTONS; i++) {
     // initialize built-in LED as an output
     if (sButton[i].PinButton >= 0){
@@ -2453,6 +2498,25 @@ xTaskCreatePinnedToCore(taskOled, "taskOled", 6500, NULL, 8, &xHandleOled, ARDUI
 #ifdef GSM_MODULE
   //start Gsm-task
   xTaskCreatePinnedToCore(taskGsm, "taskGsm", 4096, NULL, 3, &xHandleGsm, ARDUINO_RUNNING_CORE1);
+#endif
+
+log_i("LCD waited 0s");
+delay(10000);
+log_i("LCD waited 10s");
+delay(10000);
+log_i("LCD waited 20s");
+delay(10000);
+log_i("LCD waited 30s. Next: SPI_LCD_SD.begin");
+
+#if defined(LCD) || defined(LOGGER)
+  SPI_LCD_SD.begin(SHARP_SCK, SD_MISO, SHARP_MOSI, SHARP_SS);
+#endif
+  //SPIClass SPI_LCD_SD = SPIClass(HSPI);
+  //SPI_LCD_SD.begin(SHARP_SCK, SD_MISO, SHARP_MOSI, SD_SS);
+  log_i("sck = %d, mosi = %d, cs = %d", SHARP_SCK, SHARP_MOSI, SHARP_SS);
+
+#if defined(LCD)
+xTaskCreatePinnedToCore(taskLCD, "taskLCD", 6500, NULL, 8, &xHandleLCD, ARDUINO_RUNNING_CORE1); //background LCD
 #endif
 }
 
@@ -4488,12 +4552,14 @@ void taskStandard(void *pvParameters){
     //check Button 0
     if (sButton[0].state == ace_button::AceButton::kEventClicked){
       //log_v("Short Press IRQ");
+      log_i("Short Press IRQ"); //TESTTESTTEST
       setting.screenNumber ++;
       bShowBattPower = true; //show battery-state again
       if (setting.screenNumber > MAXSCREENS) setting.screenNumber = 0;
       write_screenNumber(); //save screennumber in File
     }else if (sButton[0].state == ace_button::AceButton::kEventLongPressed){
       //log_v("Long Press IRQ");
+      log_i("Long Press IRQ"); //TESTTESTTEST
       status.bPowerOff = true;
     }else if (sButton[0].state == ace_button::AceButton::kEventDoubleClicked){
       //log_v("double clicked IRQ"); --> switch wifi off or on
@@ -4997,6 +5063,7 @@ void powerOff(){
   eTaskState tBaro = eDeleted;
   eTaskState tEInk = eDeleted;
   eTaskState tOled = eDeleted;
+  eTaskState tLCD = eDeleted;
   eTaskState tStandard = eDeleted;
   #ifdef GSM_MODULE
   eTaskState tGSM = eDeleted;
@@ -5009,10 +5076,11 @@ void powerOff(){
     if (xHandleBaro != NULL) tBaro = eTaskGetState(xHandleBaro);
     if (xHandleEInk != NULL) tEInk = eTaskGetState(xHandleEInk);
     if (xHandleOled != NULL) tOled = eTaskGetState(xHandleOled);
+    if (xHandleLCD != NULL) tLCD = eTaskGetState(xHandleLCD);
     if (xHandleStandard != NULL) tStandard = eTaskGetState(xHandleStandard);
     if (xHandleWeather != NULL) tWeather = eTaskGetState(xHandleWeather);    
-    if ((tLogger == eDeleted) && (tBaro == eDeleted) && (tEInk == eDeleted) && (tWeather == eDeleted) && (tStandard == eDeleted) && (tOled == eDeleted)) break; //now all tasks are stopped
-    log_i("logger=%d,baro=%d,eink=%d,oled=%d,standard=%d,weather=%d",tLogger,tBaro,tEInk,tOled,tStandard,tWeather);
+    if ((tLogger == eDeleted) && (tBaro == eDeleted) && (tEInk == eDeleted) && (tWeather == eDeleted) && (tStandard == eDeleted) && (tOled == eDeleted) && (tLCD == eDeleted)) break; //now all tasks are stopped
+    log_i("logger=%d,baro=%d,eink=%d,oled=%d,LCD=%d,standard=%d,weather=%d",tLogger,tBaro,tEInk,tOled,tLCD,tStandard,tWeather);
     delay(1000);
   }
   #ifdef GSM_MODULE
@@ -5147,6 +5215,38 @@ void taskOled(void *pvParameters){
   if (bPowerOff) display.end();
   log_i("stop task");
   vTaskDelete(xHandleOled);
+}
+#endif
+
+#if defined(LCD)
+void taskLCD(void *pvParameters){
+  log_i("start LCD-task");
+
+  if (status.displayType != LCD1_3){
+    log_i("stop task");
+    vTaskDelete(xHandleLCD);
+    return;
+  }
+
+  extern SPIClass SPI_LCD_SD;
+  LCD_class displayLCD_class;
+  
+  // start the display
+  log_i("displayLCD: Wait 10s");
+  delay(10000);
+  log_i("start the display: sck = %d, mosi = %d, cs = %d", SHARP_SCK, SHARP_MOSI, SHARP_SS);
+  displayLCD_class.begin(&SPI_LCD_SD, SHARP_SS);
+  while(1){
+    displayLCD_class.run();
+    delay(10);
+    if ((WebUpdateRunning) || (bPowerOff)) break;
+  }
+  
+  
+  if (WebUpdateRunning) displayLCD_class.webUpdate();
+  if (bPowerOff) displayLCD_class.end();
+  log_i("stop task");
+  vTaskDelete(xHandleLCD);
 }
 #endif
 

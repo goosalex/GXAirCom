@@ -145,10 +145,12 @@ int16_t LoRaClass::SPItransfer(uint8_t* cmd, uint8_t cmdLen, bool write, uint8_t
   #endif
 
   // pull NSS low
+  //log_i("getCs() = %i", pGxModule->getCs()); //TESTTESTTEST
   GxModule::digitalWrite(pGxModule->getCs(), LOW);
 
   // ensure BUSY is low (state machine ready)
   uint32_t start = GxModule::millis();
+  //log_i("getGpio() = %i", pGxModule->getGpio()); //TESTTESTTEST
   while(GxModule::digitalRead(pGxModule->getGpio())) {
     GxModule::yield();
     if(GxModule::millis() - start >= timeout) {
@@ -161,6 +163,7 @@ int16_t LoRaClass::SPItransfer(uint8_t* cmd, uint8_t cmdLen, bool write, uint8_t
   spi->beginTransaction(spiSettings);
 
   // send command byte(s)
+  //log_i("cmd = %i", cmd); //TESTTESTTEST
   for(uint8_t n = 0; n < cmdLen; n++) {
     spi->transfer(cmd[n]);
   }
@@ -173,6 +176,7 @@ int16_t LoRaClass::SPItransfer(uint8_t* cmd, uint8_t cmdLen, bool write, uint8_t
     for(uint8_t n = 0; n < numBytes; n++) {
       // send byte
       uint8_t in = spi->transfer(dataOut[n]);
+      //log_i("dataOut, = %i, in = %i, n = %i, numBytes = %i", dataOut, in, n, numBytes); //TESTTESTTEST
       #ifdef RADIOLIB_VERBOSE
         debugBuff[n] = in;
       #endif
@@ -201,8 +205,10 @@ int16_t LoRaClass::SPItransfer(uint8_t* cmd, uint8_t cmdLen, bool write, uint8_t
        ((in & 0b00001110) == SX126X_STATUS_CMD_INVALID) ||
        ((in & 0b00001110) == SX126X_STATUS_CMD_FAILED)) {
       status = in & 0b00001110;
+      log_i("status (in if) = %i", status); //TESTTESTTEST
     } else if(in == 0x00 || in == 0xFF) {
       status = SX126X_STATUS_SPI_FAILED;
+      log_i("status (in else if) = %i", status); //TESTTESTTEST
     } else {
       for(uint8_t n = 0; n < numBytes; n++) {
         dataIn[n] = spi->transfer(SX126X_CMD_NOP);
@@ -1333,10 +1339,12 @@ int16_t LoRaClass::sx1262Transmit(uint8_t* buffer, size_t len, uint8_t addr){
   // get currently active modem
   if(_fskMode) {
     // calculate timeout (500% of expected time-on-air)
-    timeout = sx1262GetTimeOnAir(len) * 5;
+    timeout = sx1262GetTimeOnAir(len) * 5 + 1000;
+    log_i("LoRaClass::sx1262Transmit: _fskMode = True, timeout = %i, len = %i", timeout, len); //TESTTESTTEST
   } else {
     // calculate timeout (150% of expected time-on-air)
-    timeout = (sx1262GetTimeOnAir(len) * 3) / 2;
+    timeout = (sx1262GetTimeOnAir(len) * 3) / 2 + 1005;
+    log_i("LoRaClass::sx1262Transmit: _fskMode = False, timeout = %i, len = %i", timeout, len); //TESTTESTTEST
   }
   //log_i("timeout=%d",timeout);
   sx1262SetDioIrqParams(SX126X_IRQ_TX_DONE | SX126X_IRQ_TIMEOUT, SX126X_IRQ_TX_DONE);
@@ -1401,9 +1409,11 @@ int16_t LoRaClass::sx1262Transmit(uint8_t* buffer, size_t len, uint8_t addr){
 
   // wait for packet transmission or timeout
   uint32_t start = GxModule::micros();
+  log_i("LoRaClass::sx1262Transmit: getIrq = %i", pGxModule->getIrq()); //TESTTESTTEST
   while(!GxModule::digitalRead(pGxModule->getIrq())) {
     GxModule::yield();
     if(GxModule::micros() - start > timeout) {
+      log_i("LoRaClass::sx1262Transmit: micros = %i, start = %i, timeout = %i", micros(), start, timeout); //TESTTESTTEST
       sx1262ClearIrqStatus();
       sx1262_standby(0x01);
       return(ERR_TX_TIMEOUT);
@@ -1417,6 +1427,7 @@ int16_t LoRaClass::sx1262Transmit(uint8_t* buffer, size_t len, uint8_t addr){
   // set mode to standby to disable transmitter
   state = sx1262_standby(0x01);
 
+  log_i("LoRaClass::sx1262Transmit: state = %i", state); //TESTTESTTEST
   return(state);
 }
 
@@ -1524,6 +1535,7 @@ int16_t LoRaClass::transmit(uint8_t* data, size_t len){
   //log_i("transmit l=%d",len);
 	/* channel accessible? */
   int state = sx_channel_free4tx();
+  log_i("LoRaClass::transmit: state = %i", state); //TESTTESTTEST
 	if(state != ERR_NONE)
     return state;
 
@@ -1540,7 +1552,8 @@ int16_t LoRaClass::transmit(uint8_t* data, size_t len){
   }else{
     /* update air time */
     sx_airtime += expectedAirTime_ms(len);
-  } 	
+  }
+  log_i("LoRaClass::transmit: radioType = %i", radioType); //TESTTESTTEST
   switch (radioType){
     case RADIO_SX1262:
       if (_fskMode){
